@@ -14,13 +14,23 @@ public class MarsEnv extends Environment {
 
     public static final int GSize = 7; // grid size
     public static final int GARB  = 16; // garbage code in grid model
+    public static final int LEFT = 0;
+    public static final int RIGHT = 1;
+    public static final int UP = 2;
+    public static final int DOWN = 3;
+
 
     public static final Term    ns = Literal.parseLiteral("next(slot)");
     public static final Term    pg = Literal.parseLiteral("pick(garb)");
     public static final Term    dg = Literal.parseLiteral("drop(garb)");
     public static final Term    bg = Literal.parseLiteral("burn(garb)");
+    public static final Term    mr = Literal.parseLiteral("moveRand(r3)");
+    public static final Term    gr = Literal.parseLiteral("garbRand(r3)");
     public static final Literal g1 = Literal.parseLiteral("garbage(r1)");
     public static final Literal g2 = Literal.parseLiteral("garbage(r2)");
+    public static final Literal g3 = Literal.parseLiteral("garbage(r3)");
+
+
 
     static Logger logger = Logger.getLogger(MarsEnv.class.getName());
 
@@ -51,7 +61,11 @@ public class MarsEnv extends Environment {
                 model.dropGarb();
             } else if (action.equals(bg)) {
                 model.burnGarb();
-            } else {
+            } else if(action.equals(mr)){
+                model.moveRand();
+            }else if(action.equals(gr)){
+                model.garbRand();
+            }else {
                 return false;
             }
         } catch (Exception e) {
@@ -73,9 +87,11 @@ public class MarsEnv extends Environment {
 
         Location r1Loc = model.getAgPos(0);
         Location r2Loc = model.getAgPos(1);
+        Location r3Loc = model.getAgPos(2);
 
         Literal pos1 = Literal.parseLiteral("pos(r1," + r1Loc.x + "," + r1Loc.y + ")");
         Literal pos2 = Literal.parseLiteral("pos(r2," + r2Loc.x + "," + r2Loc.y + ")");
+
 
         addPercept(pos1);
         addPercept(pos2);
@@ -86,6 +102,13 @@ public class MarsEnv extends Environment {
         if (model.hasObject(GARB, r2Loc)) {
             addPercept(g2);
         }
+
+        if (model.hasObject(GARB, r3Loc)) {
+            addPercept(g3);
+        }
+
+
+
     }
 
     class MarsModel extends GridWorldModel {
@@ -93,43 +116,98 @@ public class MarsEnv extends Environment {
         public static final int MErr = 2; // max error in pick garb
         int nerr; // number of tries of pick garb
         boolean r1HasGarb = false; // whether r1 is carrying garbage or not
+        int nerr2; // number of tries of pick garb
+
 
         Random random = new Random(System.currentTimeMillis());
 
         private MarsModel() {
-            super(GSize, GSize, 2);
+            super(GSize, GSize, 3);
 
             // initial location of agents
             try {
-                setAgPos(0, 0, 0);
 
-                Location r2Loc = new Location(GSize/2, GSize/2);
+
+                Location r1Loc = new Location(random.nextInt(6), random.nextInt(6));
+                Location r2Loc = new Location(random.nextInt(6), random.nextInt(6)); //1.2
+                Location r3Loc = new Location(random.nextInt(6), random.nextInt(6));
+
+                setAgPos(0, r1Loc);
                 setAgPos(1, r2Loc);
+                setAgPos(2, r3Loc);
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
             // initial location of garbage
-            add(GARB, 3, 0);
-            add(GARB, GSize-1, 0);
-            add(GARB, 1, 2);
-            add(GARB, 0, GSize-2);
-            add(GARB, GSize-1, GSize-1);
+
+            for(int i=0; i < 4; i++){ // 1.1
+                add(GARB, random.nextInt(6), random.nextInt(6));
+            }
+
+        }
+
+        void moveRand() throws Exception {
+            Location r3 = getAgPos(2);
+
+            Random r = new Random(System.currentTimeMillis());
+            int posAleatoria = r.nextInt(4);
+
+            switch(posAleatoria){
+                case RIGHT:
+                    if (r3.x < (getWidth()-1)) r3.x++;
+                    else r3.x --;
+                    break;
+                case LEFT:
+                    if (r3.x > 0) r3.x--;
+                    else r3.x++;
+                    break;
+                case DOWN:
+                    if (r3.y < (getWidth()-1)) r3.y++;
+                    else  r3.y --;
+                    break;
+                case UP:
+                    if (r3.y > 0) r3.y--;
+                    else r3.y++;
+                    break;
+            }
+
+            setAgPos(2, r3);
+
+
+        }
+
+        void garbRand() throws Exception {
+
+            Random r = new Random(System.currentTimeMillis());
+            int dropGarbage = r.nextInt(8);
+
+            if(dropGarbage == 1){
+                add(GARB, getAgPos(2));
+            }
+
         }
 
         void nextSlot() throws Exception {
+
             Location r1 = getAgPos(0);
-            r1.x++;
-            if (r1.x == getWidth()) {
-                r1.x = 0;
-                r1.y++;
+
+
+            r1.y++;
+            if (r1.y == getHeight()) {
+                r1.y = 0;
+                r1.x++;
             }
             // finished searching the whole grid
-            if (r1.y == getHeight()) {
-                return;
+            if (r1.x == getWidth()) {
+                r1.x = 0;
             }
+
+
             setAgPos(0, r1);
             setAgPos(1, getAgPos(1)); // just to draw it in the view
+
+
         }
 
         void moveTowards(int x, int y) throws Exception {
@@ -156,9 +234,13 @@ public class MarsEnv extends Environment {
                     nerr = 0;
                     r1HasGarb = true;
                 } else {
+                    System.out.println("Fallo");
                     nerr++;
                 }
             }
+
+
+
         }
         void dropGarb() {
             if (r1HasGarb) {
@@ -171,6 +253,14 @@ public class MarsEnv extends Environment {
             if (model.hasObject(GARB, getAgPos(1))) {
                 remove(GARB, getAgPos(1));
             }
+
+            /*if (random.nextBoolean() || nerr == MErr) {
+                    remove(GARB, getAgPos(1));
+                    nerr = 0;
+                } else {
+                    System.out.println("Fallo2");
+                    nerr++;
+                }*/
         }
     }
 
