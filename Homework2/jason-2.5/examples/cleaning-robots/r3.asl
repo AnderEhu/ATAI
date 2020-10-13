@@ -1,5 +1,3 @@
-// mars robot 2
-
 !check(slots).
 
 +!check(slots) <- moveRand(r3);
